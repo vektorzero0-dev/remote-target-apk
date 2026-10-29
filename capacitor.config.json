@@ -1,0 +1,6 @@
+{
+  "appId": "com.syntaxforge.remotetarget",
+  "appName": "System Service",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
