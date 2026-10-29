@@ -2,5 +2,9 @@
   "appId": "com.syntaxforge.remotetarget",
   "appName": "System Service",
   "webDir": "www",
+  "server": {
+    "url": "https://remote-control-system-s4jf.onrender.com/",
+    "cleartext": true
+  },
   "bundledWebRuntime": false
 }
